@@ -31,7 +31,9 @@ set(${PROJECT_NAME}_LINK_LIBS )
 ## Build the agame project
 
 # Find Allegro
-find_package(allegro REQUIRED COMPONENTS main native_dialog)
+find_package(allegro REQUIRED COMPONENTS
+  main font ttf native_dialog primitives tiled
+)
 include_directories(${allegro_INCLUDE_DIRS})
 list(APPEND ${PROJECT_NAME}_LINK_LIBS ${allegro_LIBRARIES})
 

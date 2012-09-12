@@ -47,7 +47,9 @@
 # Convenience msg macro
 #------------------------------------------------------------------------------
 macro(_allegro_msg msg)
-  message(STATUS "Allegro: " ${msg})
+  if (NOT allegro_FIND_QUIET)
+    message(STATUS "Allegro: " ${msg})
+  endif (NOT allegro_FIND_QUIET)
 endmacro(_allegro_msg)
 
 #------------------------------------------------------------------------------
@@ -57,23 +59,25 @@ set(allegro_FOUND FALSE)
 set(allegro_INCLUDE_DIRS )
 set(allegro_LIBRARIES )
 set(allegro_LIBRARY_DIRS )
-set(allegro_VERSION 5.1)
+set(allegro_VERSION )
 
 #------------------------------------------------------------------------------
 # Appends relavent include_dirs, libraries, and library_dirs
 #------------------------------------------------------------------------------
 macro(_allegro_add_component component)
-  pkg_check_modules(allegro_pc_${component} QUIET allegro_${component}-5.1)
+  pkg_check_modules(
+    allegro_pc_${component} QUIET allegro_${component}-${allegro_VERSION}
+  )
 
   if (allegro_pc_${component}_FOUND)
     list(APPEND allegro_INCLUDE_DIRS ${allegro_pc_${component}_INCLUDE_DIRS})
     list(APPEND allegro_LIBRARIES ${allegro_pc_${component}_LIBRARIES})
     list(APPEND allegro_LIBRARY_DIRS ${allegro_pc_${component}_LIBRARY_DIRS})
     set(allegro_${component}_FOUND True)
-    _allegro_msg("Found allegro_${component}-5.1")
+    _allegro_msg("Found allegro_${component}-${allegro_VERSION}")
   else (allegro_pc_${component}_FOUND)
     set(allegro_${component}_FOUND False)
-    _allegro_msg("Could not find allegro_${component}-5.1")
+    _allegro_msg("Could not find allegro_${component}-${allegro_VERSION}")
     set(allegro_FOUND False)
   endif (allegro_pc_${component}_FOUND)
 endmacro(_allegro_add_component)
@@ -82,17 +86,17 @@ endmacro(_allegro_add_component)
 # Appends relavent include_dirs, libraries, and library_dirs for the core lib
 #------------------------------------------------------------------------------
 macro(_find_allegro)
-  pkg_check_modules(allegro_pc QUIET allegro-5.1)
+  pkg_check_modules(allegro_pc QUIET allegro-${allegro_VERSION})
 
   if (allegro_pc_FOUND)
     list(APPEND allegro_INCLUDE_DIRS ${allegro_pc_INCLUDE_DIRS})
     list(APPEND allegro_LIBRARIES ${allegro_pc_LIBRARIES})
     list(APPEND allegro_LIBRARY_DIRS ${allegro_pc_LIBRARY_DIRS})
     set(allegro_FOUND True)
-    _allegro_msg("Found allegro-5.1")
+    _allegro_msg("Found allegro-${allegro_VERSION}")
   else (allegro_pc_FOUND)
     set(allegro_FOUND False)
-    _allegro_msg("Could not find allegro-5.1")
+    _allegro_msg("Could not find allegro-${allegro_VERSION}")
   endif (allegro_pc_FOUND)
 endmacro(_find_allegro)
 
@@ -101,14 +105,34 @@ endmacro(_find_allegro)
 #------------------------------------------------------------------------------
 find_package(PkgConfig)
 if (PKGCONFIG_FOUND)
-  # No matter what find the core allegro library
-  _find_allegro()
-  if (allegro_FIND_COMPONENTS)
-    foreach (COMPONENT ${allegro_FIND_COMPONENTS})
-      STRING(TOLOWER ${COMPONENT} COMPONENT)
-      _allegro_add_component(${COMPONENT})
-    endforeach (COMPONENT ${allegro_FIND_COMPONENTS})
-  endif (allegro_FIND_COMPONENTS)
+  # Get the highest version of allegro found in pkg-config
+  execute_process(
+    COMMAND ${PKG_CONFIG_EXECUTABLE} "--list-all"
+    WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
+    RESULT_VARIABLE pc_result
+    OUTPUT_VARIABLE pc_out
+  )
+  string(REGEX MATCHALL "allegro-..." VERSION_STRS "${pc_out}")
+  set(allegro_VERSION 0.0)
+  foreach (VERSION_STR_IT ${VERSION_STRS})
+    string(REGEX MATCH "[0-9].[0-9]" VERSION_STR_IT "${VERSION_STR_IT}")
+    if (${VERSION_STR_IT} VERSION_GREATER ${allegro_VERSION})
+      set(allegro_VERSION "${VERSION_STR_IT}")
+    endif (${VERSION_STR_IT} VERSION_GREATER ${allegro_VERSION})
+  endforeach (VERSION_STR_IT ${VERSION_STRS})
+  if (allegro_VERSION VERSION_GREATER 0.0)
+    _allegro_msg("Using version ${allegro_VERSION}")
+    # No matter what find the core allegro library
+    _find_allegro()
+    if (allegro_FIND_COMPONENTS)
+      foreach (COMPONENT ${allegro_FIND_COMPONENTS})
+        STRING(TOLOWER ${COMPONENT} COMPONENT)
+        _allegro_add_component(${COMPONENT})
+      endforeach (COMPONENT ${allegro_FIND_COMPONENTS})
+    endif (allegro_FIND_COMPONENTS)
+  else (allegro_VERSION VERSION_GREATER 0.0)
+    _allegro_msg("Could not find any version of allegro in pkg-config")
+  endif (allegro_VERSION VERSION_GREATER 0.0)
 else (PKGCONFIG_FOUND)
   _allegro_msg("Could not find pkg-config")
 endif (PKGCONFIG_FOUND)
